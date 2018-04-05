@@ -32,24 +32,16 @@ SOLIDITY_DYNAMIC_TYPES = [
 ]
 
 def construct_file_docstring():
-    '''
-    @summary: construct the module docstring
-    '''
     docstring = "/**\n"
     docstring += " * Created on %s\n"
     docstring += " * @summary: \n"
     docstring += " * @author: %s\n"
-    docstring += " */\n\n"
+    docstring += " */\n"
     docstring = docstring % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), getpass.getuser())
     return docstring
 
 
 def construct_docstring(declaration, indent = 0):
-    '''
-    @summary: construct docstring according to the declaration
-    @param declaration: the result of parse_declaration() reurns
-    @param indent: the indent space number
-    '''
     docstring = ""
     try:
         typename, name, params, returns = declaration
@@ -80,94 +72,8 @@ def construct_docstring(declaration, indent = 0):
 
     return docstring
 
-
-def get_declaration(view, point):
-    '''
-    @summary: get the whole declaration of the class/def before the specified point
-    @return: (True/False, region)
-            True/False --- if the point in a declaration region
-            region --- region of the declaration
-    '''
-    flag = False
-    declaration_region = sublime.Region(0, 0)
-
-    b_need_forward = False
-    b_need_backward = False
-
-
-    declaration = ""
-    line = view.line(point)
-    begin_point = line.begin()
-    end_point = line.end()
-    while True:
-        if begin_point < 0:
-            print("Can not find the start of the declaration")
-            flag = False
-            break
-        line = view.line(begin_point)
-        line_contents = view.substr(line)
-        words = line_contents.split()
-        print(words)
-        if len(words) > 0:
-            if words[0] in ("contract", "function"):
-                flag = True
-                begin_point = line.begin()
-                end_point = line.end()
-                break
-        # get previous line
-        begin_point = begin_point - 1
-    if flag:
-        # check from the line in where begin_point lives
-        line = view.line(end_point)
-        line_contents = view.substr(line).rstrip()
-        while True:
-
-            if end_point > view.size():
-                print("Can not find the end of the declaration")
-                flag = False
-                break
-
-            if (len(line_contents) >= 2) and (line_contents[-1] == "{"):
-                print("reach the end of the declaration")
-                flag = True
-                end_point = line.begin() + len(line_contents) - 1
-                break
-            # get next line
-            line = view.line(end_point + 1)
-            end_point = line.end()
-            line_contents = view.substr(line).rstrip()
-
-    # check valid
-    if end_point <= begin_point:
-        flag = False
-
-    if flag:
-        declaration_region = sublime.Region(begin_point, end_point)
-
-    return (flag, declaration_region)
-
 def parse_declaration(declaration):
-    '''
-    @summary: parse the class/def declaration
-    @param declaration: class/def declaration string
-    @result:
-        (typename, name, params)
-        typename --- a string specify the type of the declaration, must be 'class' or 'def'
-        name --- the name of the class/def
-        params --- param list
-    '''
-    def rindex(l, x):
-        index = -1
-        if len(l) > 0:
-            for i in range(len(l) - 1, -1, -1):
-                if l[i] == x:
-                    index = i
-        return index
-
     def get_name(declaration, typename):
-      print("get_name()")
-      print("declaration ", declaration)
-      print("typename ", typename)
       name = ""
       index = declaration.find("(")
       if typename == "contract":
@@ -229,10 +135,7 @@ def parse_declaration(declaration):
 
         # Does this function return something?
         if declaration.find('returns') != -1:
-          print("found some cheeky returns")
-          print(declaration)
           returns_raw, ignore = process_brackets(declaration)
-          print(returns_raw)
           for return_name in returns_raw:
             # Returns can optionally define a type, we only want the name
             if not valid_variable(return_name):
@@ -251,33 +154,55 @@ class DocstringCommand(sublime_plugin.TextCommand):
             return False
         return True
 
+
+    def process_file(self):
+        line_pointer = 0
+        while line_pointer <= self.view.size():
+            line_region = self.view.line(line_pointer)
+            line = self.view.substr(line_region).strip()
+            if line.startswith("pragma solidity"):
+                self.insert_file_docstring(line_region)
+            elif line.startswith("contract"):
+                self.insert_docstring(line_region)
+            elif line.startswith("function"):
+                self.insert_docstring(line_region)
+            line_pointer = line_region.end() + 1
+
+    def region_documented(self, region):
+        if region.a == 0:
+            return False
+        previous_line = self.view.substr(self.view.line(region.a-1)).strip()
+        # TODO: Make a better assumption that a docstring exists than looking for the end of a multi-line comment..
+        if previous_line == "*/":
+            return True
+        return False
+
+    def insert_file_docstring(self, region):
+        if self.region_documented(region):
+            print ("File already has a Docstring. Skipping..")
+            return
+        self.view.insert(self.edit, region.begin(), construct_file_docstring())
+
+    def insert_docstring(self, region):
+        if self.region_documented(region):
+            print ("Docstring already exists. Skipping..")
+            return
+        line = self.view.substr(region)
+        docstring = construct_docstring(parse_declaration(line))
+        self.view.insert(self.edit, region.begin(), docstring)
+
+    def insert_function_docstrings(self, edit):
+        for function_region in self.function_regions:
+            if self.region_documented(function_region):
+                print ("Function already has a Docstring. Skipping..")
+                continue
+            line = self.view.substr(function_region)
+            function_docstring = construct_docstring(parse_declaration(line))
+            self.view.insert(edit, function_region.a, function_docstring)
+
     def run(self, edit):
         if not self.is_solidity_file():
           return
-        for region in self.view.sel():
-            if region.empty():
-                line = self.view.line(region)
-                previous_region = sublime.Region(0,line.begin())
-                previous_contents = self.view.substr(previous_region)
-                if len(previous_contents.strip()) == 0:
-                    print("Start of the file. Inserting File Docstring")
-                    self.view.insert(edit, 0, construct_file_docstring())
-                else:
-                    print("Not at the beginning of the file")
-
-                tab_size = self.view.settings().get("tab_size", 4)
-                print("tab_size = ", tab_size)
-                flag, declaration_region = get_declaration(self.view, line.begin())
-                print("declaration_region begin = %s, end = %s"%(declaration_region.begin(),
-                    declaration_region.end()))
-                declaration = self.view.substr(declaration_region)
-                print("is_declaration: %s\ndeclaration: %s"%(flag, declaration))
-                if flag:
-                    result = parse_declaration(declaration)
-                    indent = len(declaration) - len(declaration.lstrip())
-                    docstring = construct_docstring(result, indent = int(indent))
-                    print("docstring is: \n%s" %(docstring))
-                    # Check that docstring doesn't already exist??? TODO
-                    self.view.insert(edit, declaration_region.begin(), docstring)
-
+        self.edit = edit
+        self.process_file()
 
