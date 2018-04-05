@@ -5,7 +5,7 @@ Solidity Docstring Generator
 
 Solidity Docstring Generator allows you to do this:
 
-![https://i.imgur.com/FRNyJwh.gif](Gif of usage)
+![Gif of usage](https://i.imgur.com/FRNyJwh.gif)
 
 Installation
 ------------
