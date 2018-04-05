@@ -110,12 +110,12 @@ def parse_declaration(declaration):
 
     def valid_variable(var):
       if var in SOLIDITY_TYPES:
-        return False
+        return True
       else:
         for types in SOLIDITY_DYNAMIC_TYPES:
           if re.match(types + '[0-9]{0,3}$', var) != None:
-           return False
-      return True
+           return True
+      return False
 
     params = []
     returns = []
@@ -138,7 +138,7 @@ def parse_declaration(declaration):
           returns_raw, ignore = process_brackets(declaration)
           for return_name in returns_raw:
             # Returns can optionally define a type, we only want the name
-            if not valid_variable(return_name):
+            if valid_variable(return_name):
               continue
             returns.append(return_name)
 
@@ -169,10 +169,11 @@ class DocstringCommand(sublime_plugin.TextCommand):
             line_pointer = line_region.end() + 1
 
     def region_documented(self, region):
-        if region.a == 0:
+        if region.begin() == 0:
             return False
         previous_line = self.view.substr(self.view.line(region.a-1)).strip()
         # TODO: Make a better assumption that a docstring exists than looking for the end of a multi-line comment..
+        # TODO: Find existing docstrings that might be out of date (complicated?)
         if previous_line == "*/":
             return True
         return False
