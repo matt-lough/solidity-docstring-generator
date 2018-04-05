@@ -1,0 +1,6 @@
+[
+	{
+		"caption": "Generate Solidity Docstrings",
+		"command": "docstring"
+	}
+]
