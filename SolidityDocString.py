@@ -129,9 +129,9 @@ def parse_declaration(declaration):
       # extract params
       if (len(declaration) >= 2) and (declaration.find('(') != -1):
         params_raw, declaration = process_brackets(declaration)
-        for i in range(0, len(params_raw), 2):
-          # print("Parameter Type: {:s}".format(params_raw[i]))
-          params.append(params_raw[i + 1])
+        if len(params_raw) >= 2:
+          for i in range(0, len(params_raw), 2):
+            params.append(params_raw[i + 1])
 
         # Does this function return something?
         if declaration.find('returns') != -1:
@@ -178,6 +178,10 @@ class DocstringCommand(sublime_plugin.TextCommand):
             return True
         return False
 
+    def get_indent(self, line):
+      cleaned = line.lstrip(' ')
+      return len(line) - len(cleaned)
+
     def insert_file_docstring(self, region):
         if self.region_documented(region):
             print ("File already has a Docstring. Skipping..")
@@ -189,7 +193,7 @@ class DocstringCommand(sublime_plugin.TextCommand):
             print ("Docstring already exists. Skipping..")
             return
         line = self.view.substr(region)
-        docstring = construct_docstring(parse_declaration(line))
+        docstring = construct_docstring(parse_declaration(line), self.get_indent(line))
         self.view.insert(self.edit, region.begin(), docstring)
 
     def insert_function_docstrings(self, edit):
@@ -198,7 +202,7 @@ class DocstringCommand(sublime_plugin.TextCommand):
                 print ("Function already has a Docstring. Skipping..")
                 continue
             line = self.view.substr(function_region)
-            function_docstring = construct_docstring(parse_declaration(line))
+            function_docstring = construct_docstring(parse_declaration(line), self.get_indent(line))
             self.view.insert(edit, function_region.a, function_docstring)
 
     def run(self, edit):
