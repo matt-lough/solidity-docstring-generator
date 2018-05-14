@@ -10,12 +10,17 @@ Solidity Docstring Generator allows you to do this:
 Installation
 ------------
 
+__Package Control (recommended)__
+
+- Open the command palette is Sulbime (Command+Shift+P on Mac, Ctrl+Shift+P on Linux/Windows)
+- Use the "Package Control: Install Package" command and search for "Solidity Docstring Generator
+
+__Manually__
+
 Add `SolidityDocString.py` and `SolidityDocstringGenerator.sublime-commands` to your Packages directory.
 
 (OSX): `Users\”Username”\Library\Application Support\Sublime Text 3\Packages`
 (WIN7): `C:\Users\”Username”\AppData\Roaming\Sublime Text 3\Packages`
-
-TODO: Add this plugin to [Package Control](https://packagecontrol.io/packages/SyncedSideBar) for automatic installation
 
 Usage
 -----
