@@ -32,6 +32,7 @@ SOLIDITY_DYNAMIC_TYPES = [
 ]
 
 def construct_file_docstring():
+    """Generates the format for the file docstring"""
     docstring = "/**\n"
     docstring += " * Created on %s\n"
     docstring += " * @summary: \n"
@@ -42,6 +43,12 @@ def construct_file_docstring():
 
 
 def construct_docstring(declaration, indent = 0):
+    """Generates the format for the file docstring
+
+    Keyword arguments:
+    declaration -- Line of code, this should be the start of a function or contract
+    indent -- The current indentation level where the docstring will be inserted
+    """
     docstring = ""
     try:
         typename, name, params, returns = declaration
@@ -150,28 +157,27 @@ class DocstringCommand(sublime_plugin.TextCommand):
         filename = self.view.file_name()
         _, ext = os.path.splitext(filename)
         if not ext == ".sol":
-            print("This is not a Solidity file. Should end in .sol.")
+            sublime.error_message("This is not a Solidity file. Should end in .sol.")
             return False
         return True
-
 
     def process_file(self):
         line_pointer = 0
         while line_pointer <= self.view.size():
             line_region = self.view.line(line_pointer)
             line = self.view.substr(line_region).strip()
-            if line.startswith("pragma solidity"):
+            if self.region_documented(line_region):
+              print("File already has a Docstring. Skipping..")
+            elif line.startswith("pragma solidity"):
                 self.insert_file_docstring(line_region)
-            elif line.startswith("contract"):
-                self.insert_docstring(line_region)
-            elif line.startswith("function"):
+            elif line.startswith("contract") or line.startswith("function"):
                 self.insert_docstring(line_region)
             line_pointer = line_region.end() + 1
 
     def region_documented(self, region):
         if region.begin() == 0:
             return False
-        previous_line = self.view.substr(self.view.line(region.a-1)).strip()
+        previous_line = self.view.substr(self.view.line(region.begin()-1)).strip()
         # TODO: Make a better assumption that a docstring exists than looking for the end of a multi-line comment..
         # TODO: Find existing docstrings that might be out of date (complicated?)
         if previous_line == "*/":
@@ -183,27 +189,12 @@ class DocstringCommand(sublime_plugin.TextCommand):
       return len(line) - len(cleaned)
 
     def insert_file_docstring(self, region):
-        if self.region_documented(region):
-            print ("File already has a Docstring. Skipping..")
-            return
         self.view.insert(self.edit, region.begin(), construct_file_docstring())
 
     def insert_docstring(self, region):
-        if self.region_documented(region):
-            print ("Docstring already exists. Skipping..")
-            return
         line = self.view.substr(region)
         docstring = construct_docstring(parse_declaration(line), self.get_indent(line))
         self.view.insert(self.edit, region.begin(), docstring)
-
-    def insert_function_docstrings(self, edit):
-        for function_region in self.function_regions:
-            if self.region_documented(function_region):
-                print ("Function already has a Docstring. Skipping..")
-                continue
-            line = self.view.substr(function_region)
-            function_docstring = construct_docstring(parse_declaration(line), self.get_indent(line))
-            self.view.insert(edit, function_region.a, function_docstring)
 
     def run(self, edit):
         if not self.is_solidity_file():
