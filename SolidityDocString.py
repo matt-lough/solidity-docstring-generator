@@ -104,17 +104,6 @@ def parse_declaration(declaration):
         typename = "unsupported"
       return typename, declaration
 
-    def process_brackets(declaration):
-      param_start = declaration.find('(') + 1
-      param_end = declaration.find(')')
-      if (param_end == -1):
-        print("Multiple lines??")
-
-      params_raw = declaration[param_start:param_end].split(' ')
-      for i in range(0, len(params_raw)):
-        params_raw[i] = params_raw[i].rstrip(',')
-      return params_raw, declaration[param_end + 1:]
-
     def valid_variable(var):
       if var in SOLIDITY_TYPES:
         return True
@@ -151,6 +140,16 @@ def parse_declaration(declaration):
 
     return(typename, name, params, returns)
 
+def process_brackets(declaration):
+      param_start = declaration.find('(') + 1
+      param_end = declaration.find(')')
+      if (param_end == -1):
+        print("Multiple lines??")
+
+      params_raw = declaration[param_start:param_end].split(' ')
+      for i in range(0, len(params_raw)):
+        params_raw[i] = params_raw[i].rstrip(',')
+      return params_raw, declaration[param_end + 1:]
 
 class DocstringCommand(sublime_plugin.TextCommand):
     def is_solidity_file(self):
@@ -167,12 +166,49 @@ class DocstringCommand(sublime_plugin.TextCommand):
             line_region = self.view.line(line_pointer)
             line = self.view.substr(line_region).strip()
             if self.region_documented(line_region):
-              print("File already has a Docstring. Skipping..")
+              print ("File already has a Docstring. Skipping..")
             elif line.startswith("pragma solidity"):
                 self.insert_file_docstring(line_region)
             elif line.startswith("contract") or line.startswith("function"):
                 self.insert_docstring(line_region)
             line_pointer = line_region.end() + 1
+
+    def get_docstring(self, region):
+      search_region = region
+      # Try to avoid infinite loops..
+      MAX_DOCSTRING_LINES = 20
+      line_count = 1
+      while line_count < MAX_DOCSTRING_LINES:
+        search_region = self.view.line(search_region.begin() - 1)
+        line = self.view.substr(search_region).strip()
+        if line == "/**":
+          # region.end() - 1 because we only want to include the docstring in the region
+          return self.view.lines(sublime.Region(search_region.begin(), region.end() - 1))
+        line_count += 1
+      return ''
+
+    def get_param_name(self, param_line):
+      docstring_param = self.view.substr(param_line).strip().split(' ')
+      return docstring_param[docstring_param.index('@param') + 1]
+
+    def find_invalid_params(self):
+      params = self.view.find_all('@param ', 0)
+      invalid_regions = []
+      for param in params:
+        docstring_param_line = self.view.line(param)
+        docstring_param = self.get_param_name(docstring_param_line)
+        function_params, ignore = process_brackets(self.view.substr(self.find_closest_function(param)))
+        if docstring_param not in function_params:
+          invalid_regions.append(docstring_param_line)
+      self.view.add_regions("invalid_params", invalid_regions, "invalid", "circle", sublime.DRAW_SQUIGGLY_UNDERLINE)
+
+    def find_closest_function(self, region):
+      function_region = self.view.find('function ', region.end())
+      event_region = self.view.find('event ', region.end())
+      if event_region.begin() == -1 or function_region.begin() < event_region.begin():
+        return self.view.line(function_region)
+      else:
+        return self.view.line(event_region)
 
     def region_documented(self, region):
         if region.begin() == 0:
@@ -201,4 +237,5 @@ class DocstringCommand(sublime_plugin.TextCommand):
           return
         self.edit = edit
         self.process_file()
+        self.find_invalid_params()
 
