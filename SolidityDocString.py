@@ -56,10 +56,10 @@ def construct_docstring(declaration, indent = 0):
         lines.append("/**\n")
         # lines.append("\n")
         if typename == "contract":
-            lines.append(" * @title: \n")
+            lines.append(" * @title \n")
             pass
         elif typename == "function":
-            lines.append(" * @dev: \n")
+            lines.append(" * @dev \n")
 
             if len(params):
                 for param in params:
